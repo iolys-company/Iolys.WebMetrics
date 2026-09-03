@@ -1,20 +1,21 @@
 namespace Iolys.WebMetrics.Tests;
 
+[TestClass]
 public sealed class WebMetricsOptionsTests
 {
     private readonly WebMetricsOptions _options = new();
 
-    [Theory]
-    [InlineData("/wp-admin")]
-    [InlineData("//WP-ADMIN/install")]
-    [InlineData("/index.php")]
+    [TestMethod]
+    [DataRow("/wp-admin")]
+    [DataRow("//WP-ADMIN/install")]
+    [DataRow("/index.php")]
     public void ExcludedNotFoundPathIsRecognized(string path) =>
-        Assert.True(_options.IsExcludedNotFoundPath(path));
+        Assert.IsTrue(_options.IsExcludedNotFoundPath(path));
 
-    [Theory]
-    [InlineData("/")]
-    [InlineData("/articles/privacy")]
-    [InlineData("/php-is-not-a-suffix")]
+    [TestMethod]
+    [DataRow("/")]
+    [DataRow("/articles/privacy")]
+    [DataRow("/php-is-not-a-suffix")]
     public void RegularNotFoundPathIsNotExcluded(string path) =>
-        Assert.False(_options.IsExcludedNotFoundPath(path));
+        Assert.IsFalse(_options.IsExcludedNotFoundPath(path));
 }

@@ -5,9 +5,10 @@ using Microsoft.Extensions.Options;
 
 namespace Iolys.WebMetrics.Tests;
 
+[TestClass]
 public sealed class WebMetricsMiddlewareTests
 {
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareRecordsHtmlPageViewAndNormalizesDimensions()
     {
         using var fixture = StoreFixture.Create();
@@ -19,14 +20,18 @@ public sealed class WebMetricsMiddlewareTests
         await middleware.InvokeAsync(context, fixture.Store);
 
         var dashboard = await fixture.Store.GetDashboardAsync(30);
-        Assert.Equal(1, dashboard.TodayViews);
-        Assert.Equal("/docs", Assert.Single(dashboard.TopPages).Path);
-        Assert.Equal("linkedin", Assert.Single(dashboard.UtmSources).Source);
-        Assert.Equal("social", Assert.Single(dashboard.UtmMediums).Medium);
-        Assert.Equal("launch", Assert.Single(dashboard.Campaigns).Campaign);
+        Assert.AreEqual(1L, dashboard.TodayViews);
+        Assert.HasCount(1, dashboard.TopPages);
+        Assert.AreEqual("/docs", dashboard.TopPages.Single().Path);
+        Assert.HasCount(1, dashboard.UtmSources);
+        Assert.AreEqual("linkedin", dashboard.UtmSources.Single().Source);
+        Assert.HasCount(1, dashboard.UtmMediums);
+        Assert.AreEqual("social", dashboard.UtmMediums.Single().Medium);
+        Assert.HasCount(1, dashboard.Campaigns);
+        Assert.AreEqual("launch", dashboard.Campaigns.Single().Campaign);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareIgnoresBotsAndExcludedPaths()
     {
         using var fixture = StoreFixture.Create();
@@ -39,7 +44,7 @@ public sealed class WebMetricsMiddlewareTests
         await middleware.InvokeAsync(admin, fixture.Store);
 
         var dashboard = await fixture.Store.GetDashboardAsync(30);
-        Assert.Equal(0, dashboard.TodayViews);
+        Assert.AreEqual(0L, dashboard.TodayViews);
     }
 
     private static WebMetricsMiddleware CreateMiddleware(StoreFixture fixture) =>

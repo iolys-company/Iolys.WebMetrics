@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 
 ## [Unreleased]
 
+### Changed
+
+- Migrated the test suite from xUnit to MSTest 4.
+
 ### Added
 
 - Initial open-source extraction of the server-side ASP.NET Core metrics library.

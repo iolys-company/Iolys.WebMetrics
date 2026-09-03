@@ -1,11 +1,13 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 
 namespace Iolys.WebMetrics.Tests;
 
+[TestClass]
 public sealed class MonthlyVisitorIdFactoryTests
 {
-    [Fact]
+    [TestMethod]
     public async Task IdentifierIsStableWithinMonthAndRotatesBetweenMonths()
     {
         using var fixture = StoreFixture.Create();
@@ -28,10 +30,10 @@ public sealed class MonthlyVisitorIdFactoryTests
             context,
             CancellationToken.None);
 
-        Assert.Equal(first, second);
-        Assert.NotEqual(first, nextMonth);
-        Assert.Matches("^[0-9a-f]{32}$", first);
-        Assert.Equal(32, new FileInfo(Path.Combine(
+        Assert.AreEqual(first, second);
+        Assert.AreNotEqual(first, nextMonth);
+        StringAssert.Matches(first, new Regex("^[0-9a-f]{32}$", RegexOptions.CultureInvariant));
+        Assert.AreEqual(32L, new FileInfo(Path.Combine(
             fixture.DataDirectory,
             "test-metrics.visitor.key")).Length);
     }
