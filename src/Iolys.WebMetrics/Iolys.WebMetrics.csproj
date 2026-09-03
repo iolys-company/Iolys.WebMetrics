@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>preview.1</VersionSuffix>
+    <PackageId>Iolys.WebMetrics</PackageId>
+    <Title>Iolys.WebMetrics</Title>
+    <Authors>Iolys</Authors>
+    <Company>Iolys</Company>
+    <Description>Cookie-free, server-side ASP.NET Core website metrics stored in monthly SQLite databases.</Description>
+    <PackageTags>aspnetcore;analytics;metrics;privacy;cookie-free;sqlite</PackageTags>
+    <PackageProjectUrl>https://github.com/iolys-company/Iolys.WebMetrics</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/iolys-company/Iolys.WebMetrics.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Iolys.WebMetrics/Iolys.WebMetrics.csproj" />
+  <Project Path="tests/Iolys.WebMetrics.Tests/Iolys.WebMetrics.Tests.csproj" />
+  <Project Path="samples/Iolys.WebMetrics.Sample/Iolys.WebMetrics.Sample.csproj" />
+</Solution>

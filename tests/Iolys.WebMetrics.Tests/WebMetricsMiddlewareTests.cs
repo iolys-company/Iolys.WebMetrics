@@ -1,0 +1,69 @@
+using System.Net;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace Iolys.WebMetrics.Tests;
+
+public sealed class WebMetricsMiddlewareTests
+{
+    [Fact]
+    public async Task MiddlewareRecordsHtmlPageViewAndNormalizesDimensions()
+    {
+        using var fixture = StoreFixture.Create();
+        var middleware = CreateMiddleware(fixture);
+        var context = CreateContext(
+            "/Docs/",
+            "?utm_source=LinkedIn&utm_medium=Social&utm_campaign=Launch");
+
+        await middleware.InvokeAsync(context, fixture.Store);
+
+        var dashboard = await fixture.Store.GetDashboardAsync(30);
+        Assert.Equal(1, dashboard.TodayViews);
+        Assert.Equal("/docs", Assert.Single(dashboard.TopPages).Path);
+        Assert.Equal("linkedin", Assert.Single(dashboard.UtmSources).Source);
+        Assert.Equal("social", Assert.Single(dashboard.UtmMediums).Medium);
+        Assert.Equal("launch", Assert.Single(dashboard.Campaigns).Campaign);
+    }
+
+    [Fact]
+    public async Task MiddlewareIgnoresBotsAndExcludedPaths()
+    {
+        using var fixture = StoreFixture.Create();
+        var middleware = CreateMiddleware(fixture);
+        var bot = CreateContext("/article");
+        bot.Request.Headers.UserAgent = "ExampleBot/1.0";
+        var admin = CreateContext("/admin/stats");
+
+        await middleware.InvokeAsync(bot, fixture.Store);
+        await middleware.InvokeAsync(admin, fixture.Store);
+
+        var dashboard = await fixture.Store.GetDashboardAsync(30);
+        Assert.Equal(0, dashboard.TodayViews);
+    }
+
+    private static WebMetricsMiddleware CreateMiddleware(StoreFixture fixture) =>
+        new(
+            context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status200OK;
+                context.Response.ContentType = "text/html; charset=utf-8";
+                return Task.CompletedTask;
+            },
+            fixture.TimeProvider,
+            new MonthlyVisitorIdFactory(fixture.Paths),
+            Options.Create(fixture.Options),
+            NullLogger<WebMetricsMiddleware>.Instance);
+
+    private static DefaultHttpContext CreateContext(string path, string queryString = "")
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = path;
+        context.Request.QueryString = new QueryString(queryString);
+        context.Request.Headers.UserAgent = "Example Browser";
+        context.Request.Headers.AcceptLanguage = "en-US";
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.10");
+        return context;
+    }
+}

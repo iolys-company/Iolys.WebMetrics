@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Iolys.WebMetrics.slnx
+
+      - name: Build
+        run: dotnet build Iolys.WebMetrics.slnx --configuration Release --no-restore --warnaserror
+
+      - name: Verify formatting
+        run: dotnet format Iolys.WebMetrics.slnx --verify-no-changes
+
+      - name: Test
+        run: dotnet test tests/Iolys.WebMetrics.Tests --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/Iolys.WebMetrics --configuration Release --no-build --output artifacts
