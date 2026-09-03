@@ -8,6 +8,15 @@ Iolys.WebMetrics records page views and 404 responses without adding client-side
 
 > The project is currently in preview. Review the data model and operational limits before using it in production.
 
+## Why does this exist?
+
+Iolys.WebMetrics was originally built to provide simple, privacy-friendly
+analytics for [Iolys](https://getiolys.com), without adding client-side
+JavaScript, cookies, or a third-party analytics service.
+
+We open-sourced it because the same problem exists in many ASP.NET Core
+applications.
+
 ## Features
 
 - Server-side collection for successful HTML page views and 404 responses.
@@ -29,10 +38,10 @@ The current implementation is designed for a single application instance using a
 
 ## Installation
 
-Iolys.WebMetrics is not currently published on NuGet. Clone the repository and reference the library project directly while it is under development:
+Once the first release is available, install the latest published version from NuGet.org:
 
-```xml
-<ProjectReference Include="path/to/Iolys.WebMetrics/src/Iolys.WebMetrics/Iolys.WebMetrics.csproj" />
+```console
+dotnet add package Iolys.WebMetrics
 ```
 
 ## Quick start
@@ -147,6 +156,10 @@ dotnet pack src/Iolys.WebMetrics --configuration Release --no-build
 ## Versioning and support
 
 The package follows Semantic Versioning. While the version is below `1.0.0`, public API and storage-format changes may occur between minor releases and will be documented in [CHANGELOG.md](CHANGELOG.md).
+
+`develop` is the default, unstable integration branch. Pull requests targeting `develop` or `main` must pass the same build, formatting, test, and package checks. Every push to `develop` produces a downloadable `preview.<run number>` package retained as a GitHub Actions artifact for 14 days; preview packages are not published to NuGet.org.
+
+Every merge to `main` represents a stable release. The release pull request must set a new `VersionPrefix` in `src/Iolys.WebMetrics/Iolys.WebMetrics.csproj`. After the merge, GitHub Actions creates the packages, publishes them to NuGet.org through OIDC trusted publishing, and creates the matching `v<version>` tag and GitHub Release. Prerelease suffixes and reused versions make the workflow fail.
 
 ## Contributing
 
