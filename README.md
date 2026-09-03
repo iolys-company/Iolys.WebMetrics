@@ -168,3 +168,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Please report security concerns through 
 ## License
 
 Iolys.WebMetrics is available under the [MIT License](LICENSE).
+
+Made with [Iolys](https://getiolys.com/) — the Visual Studio extension for .NET developers.
