@@ -17,3 +17,4 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 - Monthly SQLite shards with automatic event compaction.
 - Page, visitor, source, UTM campaign, and 404 reporting APIs.
 - Sample application, automated tests, package metadata, and CI workflows.
+- Automated package, Git tag, and GitHub Release creation for merges to `main`.

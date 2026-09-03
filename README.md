@@ -157,6 +157,10 @@ dotnet pack src/Iolys.WebMetrics --configuration Release --no-build
 
 The package follows Semantic Versioning. While the version is below `1.0.0`, public API and storage-format changes may occur between minor releases and will be documented in [CHANGELOG.md](CHANGELOG.md).
 
+`develop` is the default, unstable integration branch. Pull requests targeting `develop` or `main` must pass the same build, formatting, test, and package checks.
+
+Every merge to `main` represents a release. The release pull request must set a new `VersionPrefix` and, for a prerelease, `VersionSuffix` in `src/Iolys.WebMetrics/Iolys.WebMetrics.csproj`. After the merge, GitHub Actions creates the packages, the matching `v<version>` tag, and a GitHub Release. Reusing an existing version makes the workflow fail. Packages are not published to NuGet.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please report security concerns through the process described in [SECURITY.md](SECURITY.md).

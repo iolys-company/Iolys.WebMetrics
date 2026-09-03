@@ -1,0 +1,105 @@
+name: Create release package
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Iolys.WebMetrics.slnx
+
+      - name: Read and validate package version
+        id: version
+        shell: bash
+        run: |
+          version="$(dotnet msbuild src/Iolys.WebMetrics/Iolys.WebMetrics.csproj -nologo -getProperty:PackageVersion)"
+          version="${version//$'\r'/}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Invalid package version: $version" >&2
+            exit 1
+          fi
+
+          tag="v$version"
+          if git rev-parse --verify --quiet "refs/tags/$tag" > /dev/null; then
+            echo "The release tag $tag already exists. Update VersionPrefix or VersionSuffix before merging to main." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: dotnet build Iolys.WebMetrics.slnx --configuration Release --no-restore --warnaserror
+
+      - name: Verify formatting
+        run: dotnet format Iolys.WebMetrics.slnx --verify-no-changes --no-restore
+
+      - name: Test
+        run: dotnet test tests/Iolys.WebMetrics.Tests --configuration Release --no-build
+
+      - name: Pack
+        run: >-
+          dotnet pack src/Iolys.WebMetrics
+          --configuration Release
+          --no-build
+          --output artifacts
+          -p:PackageVersion=${{ steps.version.outputs.version }}
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          package="artifacts/Iolys.WebMetrics.$PACKAGE_VERSION.nupkg"
+          symbols="artifacts/Iolys.WebMetrics.$PACKAGE_VERSION.snupkg"
+
+          test -f "$package"
+          test -f "$symbols"
+
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            gh release create "$RELEASE_TAG" "$package" "$symbols" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$package" "$symbols" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG" \
+              --generate-notes
+          fi
