@@ -29,10 +29,10 @@ The current implementation is designed for a single application instance using a
 
 ## Installation
 
-After the first package is published:
+Iolys.WebMetrics is not currently published on NuGet. Clone the repository and reference the library project directly while it is under development:
 
-```console
-dotnet add package Iolys.WebMetrics --prerelease
+```xml
+<ProjectReference Include="path/to/Iolys.WebMetrics/src/Iolys.WebMetrics/Iolys.WebMetrics.csproj" />
 ```
 
 ## Quick start

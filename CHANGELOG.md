@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 ### Changed
 
 - Migrated the test suite from xUnit to MSTest 4.
+- Made `develop` the primary development branch and disabled automated NuGet publishing.
 
 ### Added
 

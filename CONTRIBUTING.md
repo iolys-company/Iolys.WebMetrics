@@ -14,6 +14,7 @@ dotnet test tests/Iolys.WebMetrics.Tests --configuration Release --no-build
 
 ## Pull requests
 
+- Open pull requests against the `develop` branch.
 - Keep changes focused and explain their observable behavior.
 - Add tests for bug fixes and new behavior.
 - Preserve existing monthly database compatibility or document the migration.
