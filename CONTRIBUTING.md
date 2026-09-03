@@ -30,6 +30,6 @@ Regular changes are merged into `develop`. To prepare a release:
 3. Update `CHANGELOG.md`.
 4. Open a pull request from `develop` to `main`.
 
-After the pull request passes CI and is merged, the release workflow creates the NuGet packages, a matching Git tag, and a GitHub Release. It deliberately does not publish to NuGet.org.
+After the pull request passes CI and is merged, the release workflow creates the packages, publishes the package and symbols to NuGet.org through OIDC trusted publishing, and creates a matching Git tag and GitHub Release.
 
 By contributing, you agree that your contribution is licensed under the repository's MIT License.

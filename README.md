@@ -38,10 +38,10 @@ The current implementation is designed for a single application instance using a
 
 ## Installation
 
-Iolys.WebMetrics is not currently published on NuGet. Clone the repository and reference the library project directly while it is under development:
+Once the first release is available, install the latest published version from NuGet.org:
 
-```xml
-<ProjectReference Include="path/to/Iolys.WebMetrics/src/Iolys.WebMetrics/Iolys.WebMetrics.csproj" />
+```console
+dotnet add package Iolys.WebMetrics --prerelease
 ```
 
 ## Quick start
@@ -159,7 +159,7 @@ The package follows Semantic Versioning. While the version is below `1.0.0`, pub
 
 `develop` is the default, unstable integration branch. Pull requests targeting `develop` or `main` must pass the same build, formatting, test, and package checks.
 
-Every merge to `main` represents a release. The release pull request must set a new `VersionPrefix` and, for a prerelease, `VersionSuffix` in `src/Iolys.WebMetrics/Iolys.WebMetrics.csproj`. After the merge, GitHub Actions creates the packages, the matching `v<version>` tag, and a GitHub Release. Reusing an existing version makes the workflow fail. Packages are not published to NuGet.
+Every merge to `main` represents a release. The release pull request must set a new `VersionPrefix` and, for a prerelease, `VersionSuffix` in `src/Iolys.WebMetrics/Iolys.WebMetrics.csproj`. After the merge, GitHub Actions creates the packages, publishes them to NuGet.org through OIDC trusted publishing, and creates the matching `v<version>` tag and GitHub Release. Reusing an existing version makes the workflow fail.
 
 ## Contributing
 
