@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-03
+
+### Changed
+
+- Added Iolys branding to the NuGet package README.
+
+## [0.1.0] - 2026-09-03
+
 ### Changed
 
 - Migrated the test suite from xUnit to MSTest 4.
