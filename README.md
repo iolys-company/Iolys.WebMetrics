@@ -8,6 +8,15 @@ Iolys.WebMetrics records page views and 404 responses without adding client-side
 
 > The project is currently in preview. Review the data model and operational limits before using it in production.
 
+## Why does this exist?
+
+Iolys.WebMetrics was originally built to provide simple, privacy-friendly
+analytics for [Iolys](https://getiolys.com), without adding client-side
+JavaScript, cookies, or a third-party analytics service.
+
+We open-sourced it because the same problem exists in many ASP.NET Core
+applications.
+
 ## Features
 
 - Server-side collection for successful HTML page views and 404 responses.
