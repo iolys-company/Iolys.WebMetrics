@@ -26,10 +26,9 @@ dotnet test tests/Iolys.WebMetrics.Tests --configuration Release --no-build
 Regular changes are merged into `develop`. To prepare a release:
 
 1. Update `VersionPrefix` in `src/Iolys.WebMetrics/Iolys.WebMetrics.csproj`.
-2. Set `VersionSuffix` for a prerelease, or remove it for a stable release.
-3. Update `CHANGELOG.md`.
-4. Open a pull request from `develop` to `main`.
+2. Update `CHANGELOG.md`.
+3. Open a pull request from `develop` to `main`.
 
-After the pull request passes CI and is merged, the release workflow creates the packages, publishes the package and symbols to NuGet.org through OIDC trusted publishing, and creates a matching Git tag and GitHub Release.
+Pushes to `develop` automatically produce `preview.<run number>` packages as short-lived GitHub Actions artifacts. After the release pull request passes CI and is merged, the release workflow publishes the stable package and symbols to NuGet.org through OIDC trusted publishing, and creates a matching Git tag and GitHub Release.
 
 By contributing, you agree that your contribution is licensed under the repository's MIT License.

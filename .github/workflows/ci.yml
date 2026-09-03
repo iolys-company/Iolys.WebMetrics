@@ -29,8 +29,30 @@ jobs:
       - name: Restore
         run: dotnet restore Iolys.WebMetrics.slnx
 
+      - name: Determine package version
+        id: version
+        shell: bash
+        run: |
+          version_prefix="$(dotnet msbuild src/Iolys.WebMetrics/Iolys.WebMetrics.csproj -nologo -getProperty:VersionPrefix)"
+          version_prefix="${version_prefix//$'\r'/}"
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/develop" ]]; then
+            package_version="$version_prefix-preview.$GITHUB_RUN_NUMBER"
+            echo "is_preview=true" >> "$GITHUB_OUTPUT"
+          else
+            package_version="$version_prefix"
+            echo "is_preview=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: dotnet build Iolys.WebMetrics.slnx --configuration Release --no-restore --warnaserror
+        run: >-
+          dotnet build Iolys.WebMetrics.slnx
+          --configuration Release
+          --no-restore
+          --warnaserror
+          -p:Version=${{ steps.version.outputs.package_version }}
 
       - name: Verify formatting
         run: dotnet format Iolys.WebMetrics.slnx --verify-no-changes
@@ -39,4 +61,18 @@ jobs:
         run: dotnet test tests/Iolys.WebMetrics.Tests --configuration Release --no-build
 
       - name: Pack
-        run: dotnet pack src/Iolys.WebMetrics --configuration Release --no-build --output artifacts
+        run: >-
+          dotnet pack src/Iolys.WebMetrics
+          --configuration Release
+          --no-build
+          --output artifacts
+          -p:PackageVersion=${{ steps.version.outputs.package_version }}
+
+      - name: Upload preview packages
+        if: steps.version.outputs.is_preview == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Iolys.WebMetrics-${{ steps.version.outputs.package_version }}
+          path: artifacts/*.*nupkg
+          if-no-files-found: error
+          retention-days: 14

@@ -10,6 +10,7 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 
 - Migrated the test suite from xUnit to MSTest 4.
 - Made `develop` the primary development branch and restricted package publishing to automated releases from `main`.
+- Separated short-lived preview packages from stable `main` releases.
 
 ### Added
 
