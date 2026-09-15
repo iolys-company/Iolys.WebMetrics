@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 
 ## [Unreleased]
 
+### Fixed
+
+- Attribute internal navigation and subsequent referrer-less pages to the visit's entry source and campaign, with a 30-minute inactivity timeout.
+- Recalculate attribution for existing raw events and preserve it during monthly compaction without changing the database schema or adding cookies.
+- Report unrecoverable internal entry sources and previously compacted internal counts as `unknown`.
+- Document that visitor counts across source and campaign groups overlap and must not be added into a unique-visitor total.
+
 ## [0.1.1] - 2026-09-03
 
 ### Changed

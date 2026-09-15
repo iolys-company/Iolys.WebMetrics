@@ -123,6 +123,31 @@ After a month expires, individual events and visitor identifiers are replaced by
 
 The middleware uses heuristic bot and prefetch filtering. It does not claim to identify every automated request and it does not implement consent or policy decisions for the host application. Deployers remain responsible for reviewing their configuration and obligations.
 
+## Visit attribution
+
+Source, medium, and campaign reports use the entry attribution of each visit.
+Internal navigation and requests without a referrer keep that attribution until
+30 minutes of inactivity. A new external referrer or a campaign URL reached from
+outside the site starts a new attribution. Campaign parameters on internal links
+do not replace an active visit's entry campaign.
+
+Attribution is reconstructed from the existing monthly visitor identifier and raw
+page events; no cookie or additional persistent visitor identifier is introduced.
+The report reconstructs visits before applying its date filter, so an entry on the
+previous day can still explain pages in the selected period. Raw events are left
+unchanged. Compaction applies the same attribution before removing expired events.
+
+An internal entry with no recent landing event is reported as `unknown`, including
+at the monthly visitor identifier boundary. Previously compacted `internal`
+counts are also reported as `unknown`: their original source cannot be recovered.
+
+Visitor counts are distinct within each reported source/medium or campaign group
+while raw events are available. The same visitor can appear in several groups;
+do not sum these counts or present them as slices of a unique-visitor pie chart.
+After compaction, dimension counts are sums of daily visitor estimates and can
+count returning visitors more than once. Use the dashboard's audience totals
+separately, with their monthly identifier and archived-period limitations.
+
 ## Configuration
 
 | Setting | Default | Purpose |
