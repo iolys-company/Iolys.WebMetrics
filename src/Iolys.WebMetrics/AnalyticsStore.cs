@@ -220,6 +220,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
             .AsNoTracking()
             .Where(item => item.Kind == AnalyticsEventKind.NotFound);
 
+        var attributedPageViews = VisitAttribution.Apply(await pageViews.ToListAsync(cancellationToken));
         var totalViews = await pageViews.LongCountAsync(cancellationToken);
         var totalVisitors = await pageViews.Select(item => item.VisitorId).Distinct().LongCountAsync(cancellationToken);
         var totalNotFound = await notFound.LongCountAsync(cancellationToken);
@@ -246,7 +247,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
             .ToListAsync(cancellationToken);
-        var sources = await pageViews
+        var sources = attributedPageViews
             .GroupBy(item => new
             {
                 Source = item.UtmSource != ""
@@ -254,8 +255,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                     : item.ReferrerHost != "" ? item.ReferrerHost : "direct",
                 Medium = item.UtmMedium != ""
                     ? item.UtmMedium
-                    : item.ReferrerHost == "internal"
-                        ? "internal"
+                    : item.ReferrerHost == "unknown"
+                        ? "unknown"
                         : item.ReferrerHost != "" ? "referral" : "none",
                 item.Day
             })
@@ -265,8 +266,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.Medium,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
-        var utmSources = await pageViews
+            .ToArray();
+        var utmSources = attributedPageViews
             .Where(item => item.UtmSource != "")
             .GroupBy(item => new { item.Day, Source = item.UtmSource })
             .Select(group => new CountedUtmSource(
@@ -274,8 +275,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.Source,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
-        var utmMediums = await pageViews
+            .ToArray();
+        var utmMediums = attributedPageViews
             .Where(item => item.UtmMedium != "")
             .GroupBy(item => new { item.Day, Medium = item.UtmMedium })
             .Select(group => new CountedUtmMedium(
@@ -283,8 +284,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.Medium,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
-        var campaigns = await pageViews
+            .ToArray();
+        var campaigns = attributedPageViews
             .Where(item => item.UtmSource != "" || item.UtmMedium != "" || item.UtmCampaign != "")
             .GroupBy(item => new
             {
@@ -300,7 +301,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.Campaign,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
+            .ToArray();
         var notFoundPaths = await notFound
             .GroupBy(item => new { item.Day, item.Path })
             .Select(group => new CountedPage(
@@ -752,8 +753,17 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         accumulator.PeriodViews += periodEventViews + periodRollupViews;
         accumulator.PeriodVisitors += periodEventVisitors + periodRollupVisitors;
 
+        // Attribute the whole shard before filtering: a visit can start before the selected period.
+        var attributedPageViews = VisitAttribution.Apply(await context.Events.AsNoTracking()
+            .Where(item => item.Kind == AnalyticsEventKind.PageView)
+            .ToListAsync(cancellationToken))
+            .Where(item => (sinceValue is null || string.CompareOrdinal(item.Day, sinceValue) >= 0)
+                && string.CompareOrdinal(item.Day, todayValue) <= 0)
+            .ToArray();
+
         await ReadDetailedEventsAsync(
             pageEvents,
+            attributedPageViews,
             notFoundEvents,
             includeNotFoundPath,
             accumulator,
@@ -778,6 +788,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
 
     private static async Task ReadDetailedEventsAsync(
         IQueryable<AnalyticsEventEntity> pageViews,
+        IReadOnlyList<AnalyticsEventEntity> attributedPageViews,
         IQueryable<AnalyticsEventEntity> notFound,
         Func<string?, bool> includeNotFoundPath,
         DashboardAccumulator accumulator,
@@ -820,7 +831,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
             accumulator.GetPage(item.Key).Add(item.Count, item.Visitors);
         }
 
-        var sources = await pageViews
+        var sources = attributedPageViews
             .GroupBy(item => new
             {
                 Source = item.UtmSource != ""
@@ -828,8 +839,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                     : item.ReferrerHost != "" ? item.ReferrerHost : "direct",
                 Medium = item.UtmMedium != ""
                     ? item.UtmMedium
-                    : item.ReferrerHost == "internal"
-                        ? "internal"
+                    : item.ReferrerHost == "unknown"
+                        ? "unknown"
                         : item.ReferrerHost != "" ? "referral" : "none"
             })
             .Select(group => new CountedSource(
@@ -838,39 +849,39 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.Medium,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
+            .ToArray();
         foreach (var item in sources)
         {
             accumulator.GetSource(item.Source, item.Medium).Add(item.Count, item.Visitors);
         }
 
-        var utmSources = await pageViews
+        var utmSources = attributedPageViews
             .Where(item => item.UtmSource != "")
             .GroupBy(item => item.UtmSource)
             .Select(group => new CountedMetric(
                 group.Key,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
+            .ToArray();
         foreach (var item in utmSources)
         {
             accumulator.GetUtmSource(item.Key).Add(item.Count, item.Visitors);
         }
 
-        var utmMediums = await pageViews
+        var utmMediums = attributedPageViews
             .Where(item => item.UtmMedium != "")
             .GroupBy(item => item.UtmMedium)
             .Select(group => new CountedMetric(
                 group.Key,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
+            .ToArray();
         foreach (var item in utmMediums)
         {
             accumulator.GetUtmMedium(item.Key).Add(item.Count, item.Visitors);
         }
 
-        var campaigns = await pageViews
+        var campaigns = attributedPageViews
             .Where(item => item.UtmSource != "" || item.UtmMedium != "" || item.UtmCampaign != "")
             .GroupBy(item => new { item.UtmSource, item.UtmMedium, item.UtmCampaign })
             .Select(group => new CountedCampaign(
@@ -880,7 +891,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.Key.UtmCampaign,
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
-            .ToListAsync(cancellationToken);
+            .ToArray();
         foreach (var item in campaigns)
         {
             accumulator.GetCampaign(item.Source, item.Medium, item.Campaign).Add(item.Count, item.Visitors);
@@ -1513,7 +1524,10 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         public MutableDaily GetDaily(DateOnly day) => GetOrCreate(_daily, day, static () => new MutableDaily());
         public MutableMetric GetPage(string path) => GetOrCreate(_pages, path, static () => new MutableMetric());
         public MutableMetric GetSource(string source, string medium) =>
-            GetOrCreate(_sources, (source, medium), static () => new MutableMetric());
+            // Old rollups no longer contain the events needed to reconstruct their entry source.
+            GetOrCreate(_sources,
+                (source == "internal" ? "unknown" : source, medium == "internal" ? "unknown" : medium),
+                static () => new MutableMetric());
         public MutableMetric GetUtmSource(string source) =>
             GetOrCreate(_utmSources, source, static () => new MutableMetric());
         public MutableMetric GetUtmMedium(string medium) =>
