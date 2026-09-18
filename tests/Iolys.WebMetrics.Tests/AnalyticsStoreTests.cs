@@ -87,6 +87,114 @@ public sealed class AnalyticsStoreTests
     }
 
     [TestMethod]
+    public async Task ReferrersAreReportedIndependentlyOfCampaignParameters()
+    {
+        using var fixture = StoreFixture.Create();
+
+        await fixture.RecordAsync(
+            "visitor-a",
+            AnalyticsEventKind.PageView,
+            "/blog",
+            "twitter",
+            "social",
+            "launch",
+            referrerHost: "t.co");
+        await fixture.RecordAsync(
+            "visitor-b",
+            AnalyticsEventKind.PageView,
+            "/blog",
+            referrerHost: "t.co");
+        await fixture.RecordAsync(
+            "visitor-c",
+            AnalyticsEventKind.PageView,
+            "/about",
+            referrerHost: "news.ycombinator.com");
+
+        var dashboard = await fixture.Store.GetDashboardAsync(30);
+
+        Assert.HasCount(2, dashboard.Referrers);
+        var social = dashboard.Referrers.Single(item => item.Host == "t.co");
+        Assert.AreEqual(2L, social.Views);
+        Assert.AreEqual(2L, social.Visitors);
+        var forum = dashboard.Referrers.Single(item => item.Host == "news.ycombinator.com");
+        Assert.AreEqual(1L, forum.Views);
+
+        // The campaign row keeps its UTM source: the two dimensions are reported side by side.
+        Assert.IsTrue(dashboard.Sources.Any(item => item.Source == "twitter" && item.Medium == "social"));
+    }
+
+    [TestMethod]
+    public async Task ReferrersExcludeDirectAndInternalEntries()
+    {
+        using var fixture = StoreFixture.Create();
+
+        await fixture.RecordAsync("visitor-a", AnalyticsEventKind.PageView, "/");
+        await fixture.RecordAsync(
+            "visitor-b",
+            AnalyticsEventKind.PageView,
+            "/pricing",
+            referrerHost: "internal");
+
+        var dashboard = await fixture.Store.GetDashboardAsync(30);
+
+        Assert.IsEmpty(dashboard.Referrers);
+    }
+
+    [TestMethod]
+    public async Task ReferrersSurviveMonthlyCompaction()
+    {
+        using var fixture = StoreFixture.Create(
+            new DateTimeOffset(2026, 2, 1, 12, 0, 0, TimeSpan.Zero));
+        fixture.TimeProvider.UtcNow = new DateTimeOffset(2026, 1, 31, 20, 0, 0, TimeSpan.Zero);
+        await fixture.RecordAsync(
+            "visitor-a",
+            AnalyticsEventKind.PageView,
+            "/archive",
+            referrerHost: "reddit.com");
+
+        fixture.TimeProvider.UtcNow = new DateTimeOffset(2026, 2, 1, 12, 0, 0, TimeSpan.Zero);
+        await fixture.Store.CompactExpiredShardsAsync();
+
+        var januaryPath = fixture.Paths.GetShardPath(new DateOnly(2026, 1, 1));
+        await using var context = fixture.DbContextFactory.Create(januaryPath);
+        Assert.AreEqual(0, await context.Events.CountAsync());
+        var rollup = await context.ReferrerRollups.SingleAsync();
+        Assert.AreEqual("reddit.com", rollup.Host);
+        Assert.AreEqual(1L, rollup.Views);
+
+        var dashboard = await fixture.Store.GetDashboardAsync(0);
+        Assert.AreEqual("reddit.com", dashboard.Referrers.Single().Host);
+    }
+
+    [TestMethod]
+    public async Task SchemaUpgradeRebuildsReferrersFromArchivedReferralRows()
+    {
+        using var fixture = StoreFixture.Create();
+        await fixture.RecordAsync("visitor-a", AnalyticsEventKind.PageView, "/");
+
+        var shardPath = fixture.Paths.GetShardPath(new DateOnly(2026, 8, 20));
+        await using (var context = fixture.DbContextFactory.Create(shardPath))
+        {
+            await context.Database.ExecuteSqlRawAsync("""
+                DELETE FROM events;
+                DROP TABLE referrer_rollup;
+                INSERT INTO source_rollup (day, source, medium, views, visitors)
+                VALUES ('2026-08-19', 'example.com', 'referral', 5, 3),
+                       ('2026-08-19', 'newsletter', 'email', 7, 4);
+                UPDATE metadata SET value = '1' WHERE key = 'compacted';
+                UPDATE metadata SET value = '3' WHERE key = 'schema_version';
+                """);
+        }
+
+        var dashboard = await fixture.NewStore().GetDashboardAsync(30);
+
+        var referrer = dashboard.Referrers.Single();
+        Assert.AreEqual("example.com", referrer.Host);
+        Assert.AreEqual(5L, referrer.Views);
+        Assert.AreEqual(3L, referrer.Visitors);
+    }
+
+    [TestMethod]
     public async Task CompactionReplacesExpiredEventsWithRollups()
     {
         using var fixture = StoreFixture.Create(

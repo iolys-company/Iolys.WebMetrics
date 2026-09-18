@@ -6,7 +6,7 @@ namespace Iolys.WebMetrics;
 
 internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoundManager
 {
-    private const string CurrentSchemaVersion = "3";
+    private const string CurrentSchemaVersion = "4";
     private readonly AnalyticsPaths _paths;
     private readonly AnalyticsDbContextFactory _dbContextFactory;
     private readonly TimeProvider _timeProvider;
@@ -267,6 +267,15 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                 group.LongCount(),
                 group.Select(item => item.VisitorId).Distinct().LongCount()))
             .ToArray();
+        var referrers = attributedPageViews
+            .Where(item => IsReportableReferrer(item.ReferrerHost))
+            .GroupBy(item => new { item.Day, Host = item.ReferrerHost })
+            .Select(group => new CountedReferrer(
+                group.Key.Day,
+                group.Key.Host,
+                group.LongCount(),
+                group.Select(item => item.VisitorId).Distinct().LongCount()))
+            .ToArray();
         var utmSources = attributedPageViews
             .Where(item => item.UtmSource != "")
             .GroupBy(item => new { item.Day, Source = item.UtmSource })
@@ -316,6 +325,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         await MergeDailyAsync(context, dailyViews, dailyNotFound, cancellationToken);
         await MergePagesAsync(context, pages, cancellationToken);
         await MergeSourcesAsync(context, sources, cancellationToken);
+        await MergeReferrersAsync(context, referrers, cancellationToken);
         await MergeUtmSourcesAsync(context, utmSources, cancellationToken);
         await MergeUtmMediumsAsync(context, utmMediums, cancellationToken);
         await MergeCampaignsAsync(context, campaigns, cancellationToken);
@@ -391,15 +401,25 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                     .Where(item => item.Key == "schema_version")
                     .Select(item => item.Value)
                     .SingleOrDefaultAsync(cancellationToken);
+                // Upgrades are chained: every step leaves the shard at the next known version.
                 if (schemaVersion == "1")
                 {
                     await UpgradeVersionOneShardAsync(context, month, cancellationToken);
+                    schemaVersion = "3";
                 }
                 else if (schemaVersion == "2")
                 {
                     await UpgradeVersionTwoShardAsync(context, cancellationToken);
+                    schemaVersion = "3";
                 }
-                else if (schemaVersion != CurrentSchemaVersion)
+
+                if (schemaVersion == "3")
+                {
+                    await UpgradeVersionThreeShardAsync(context, cancellationToken);
+                    schemaVersion = "4";
+                }
+
+                if (schemaVersion != CurrentSchemaVersion)
                 {
                     throw new InvalidOperationException(
                         $"Analytics database '{path}' uses unsupported schema version '{schemaVersion ?? "unknown"}'.");
@@ -596,6 +616,32 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         await transaction.CommitAsync(cancellationToken);
     }
 
+    private static async Task UpgradeVersionThreeShardAsync(
+        AnalyticsDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        // Already-compacted months only kept their referrer hosts inside the referral source rows.
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS referrer_rollup (
+                day TEXT NOT NULL,
+                host TEXT NOT NULL,
+                views INTEGER NOT NULL,
+                visitors INTEGER NOT NULL,
+                PRIMARY KEY (day, host)
+            );
+
+            INSERT OR REPLACE INTO referrer_rollup (day, host, views, visitors)
+            SELECT day, source, SUM(views), SUM(visitors)
+            FROM source_rollup
+            WHERE medium = 'referral'
+            GROUP BY day, source;
+
+            UPDATE metadata SET value = '4' WHERE key = 'schema_version';
+            """, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private async Task MigrateLegacyDatabaseAsync(DateOnly today, CancellationToken cancellationToken)
     {
         if (!File.Exists(_paths.LegacyDatabasePath) || File.Exists(_paths.LegacyMigrationMarkerPath))
@@ -692,6 +738,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
 
         await MergeLegacyPagesAsync(context, rows, cancellationToken);
         await MergeLegacySourcesAsync(context, rows, cancellationToken);
+        await MergeLegacyReferrersAsync(context, rows, cancellationToken);
         await MergeLegacyUtmSourcesAsync(context, rows, cancellationToken);
         await MergeLegacyUtmMediumsAsync(context, rows, cancellationToken);
         await MergeLegacyCampaignsAsync(context, rows, cancellationToken);
@@ -855,6 +902,21 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
             accumulator.GetSource(item.Source, item.Medium).Add(item.Count, item.Visitors);
         }
 
+        // Referrers are reported independently of campaigns: a tagged inbound link still
+        // credits the site that carried it.
+        var referrers = attributedPageViews
+            .Where(item => IsReportableReferrer(item.ReferrerHost))
+            .GroupBy(item => item.ReferrerHost)
+            .Select(group => new CountedMetric(
+                group.Key,
+                group.LongCount(),
+                group.Select(item => item.VisitorId).Distinct().LongCount()))
+            .ToArray();
+        foreach (var item in referrers)
+        {
+            accumulator.GetReferrer(item.Key).Add(item.Count, item.Visitors);
+        }
+
         var utmSources = attributedPageViews
             .Where(item => item.UtmSource != "")
             .GroupBy(item => item.UtmSource)
@@ -951,6 +1013,18 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         foreach (var item in sources)
         {
             accumulator.GetSource(item.Source, item.Medium).Add(item.Count, item.Visitors);
+        }
+
+        var referrers = await ApplyPeriod(context.ReferrerRollups.AsNoTracking(), since, today)
+            .GroupBy(item => item.Host)
+            .Select(group => new CountedMetric(
+                group.Key,
+                group.Sum(item => item.Views),
+                group.Sum(item => item.Visitors)))
+            .ToListAsync(cancellationToken);
+        foreach (var item in referrers.Where(item => IsReportableReferrer(item.Key)))
+        {
+            accumulator.GetReferrer(item.Key).Add(item.Count, item.Visitors);
         }
 
         var utmSources = await ApplyPeriod(context.UtmSourceRollups.AsNoTracking(), since, today)
@@ -1116,6 +1190,28 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         }
     }
 
+    private static async Task MergeReferrersAsync(
+        AnalyticsDbContext context,
+        IReadOnlyCollection<CountedReferrer> values,
+        CancellationToken cancellationToken)
+    {
+        var existing = await context.ReferrerRollups.ToDictionaryAsync(
+            item => (item.Day, item.Host),
+            cancellationToken);
+        foreach (var item in values)
+        {
+            var key = (item.Day, item.Host);
+            var target = GetOrCreate(existing, key, () =>
+            {
+                var created = new AnalyticsReferrerRollupEntity { Day = item.Day, Host = item.Host };
+                context.ReferrerRollups.Add(created);
+                return created;
+            });
+            target.Views += item.Count;
+            target.Visitors += item.Visitors;
+        }
+    }
+
     private static async Task MergeUtmSourcesAsync(
         AnalyticsDbContext context,
         IReadOnlyCollection<CountedUtmSource> values,
@@ -1262,6 +1358,35 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         }
     }
 
+    private static async Task MergeLegacyReferrersAsync(
+        AnalyticsDbContext context,
+        IReadOnlyCollection<LegacyPageViewRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var existing = await context.ReferrerRollups.ToDictionaryAsync(
+            item => (item.Day, item.Host),
+            cancellationToken);
+        foreach (var group in rows
+                     .Where(item => IsReportableReferrer(item.ReferrerHost))
+                     .GroupBy(item => (item.Day, Host: item.ReferrerHost)))
+        {
+            var views = group.Sum(item => item.Views);
+            if (existing.TryGetValue(group.Key, out var target))
+            {
+                target.Views = Math.Max(target.Views, views);
+            }
+            else
+            {
+                context.ReferrerRollups.Add(new AnalyticsReferrerRollupEntity
+                {
+                    Day = group.Key.Day,
+                    Host = group.Key.Host,
+                    Views = views
+                });
+            }
+        }
+    }
+
     private static async Task MergeLegacyUtmSourcesAsync(
         AnalyticsDbContext context,
         IReadOnlyCollection<LegacyPageViewRow> rows,
@@ -1377,6 +1502,12 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         string today) => query.Where(item => item.Day.CompareTo(today) <= 0
             && (since == null || item.Day.CompareTo(since) >= 0));
 
+    private static IQueryable<AnalyticsReferrerRollupEntity> ApplyPeriod(
+        IQueryable<AnalyticsReferrerRollupEntity> query,
+        string? since,
+        string today) => query.Where(item => item.Day.CompareTo(today) <= 0
+            && (since == null || item.Day.CompareTo(since) >= 0));
+
     private static IQueryable<AnalyticsUtmSourceRollupEntity> ApplyPeriod(
         IQueryable<AnalyticsUtmSourceRollupEntity> query,
         string? since,
@@ -1425,6 +1556,10 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         ? row.UtmMedium
         : row.ReferrerHost == "internal" ? "internal" : row.ReferrerHost != "" ? "referral" : "none";
 
+    // "internal" and "unknown" are attribution states, not referring sites.
+    private static bool IsReportableReferrer(string host) =>
+        host is not ("" or "internal" or "unknown");
+
     private static TValue GetOrCreate<TKey, TValue>(
         IDictionary<TKey, TValue> dictionary,
         TKey key,
@@ -1455,6 +1590,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
     private sealed record CountedMetric(string Key, long Count, long Visitors);
     private sealed record CountedPage(string Day, string Path, long Count, long Visitors);
     private sealed record CountedSource(string Day, string Source, string Medium, long Count, long Visitors);
+    private sealed record CountedReferrer(string Day, string Host, long Count, long Visitors);
     private sealed record CountedUtmSource(string Day, string Source, long Count, long Visitors);
     private sealed record CountedUtmMedium(string Day, string Medium, long Count, long Visitors);
     private sealed record CountedCampaign(
@@ -1510,6 +1646,7 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
         private readonly Dictionary<DateOnly, MutableDaily> _daily = [];
         private readonly Dictionary<string, MutableMetric> _pages = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Source, string Medium), MutableMetric> _sources = [];
+        private readonly Dictionary<string, MutableMetric> _referrers = new(StringComparer.Ordinal);
         private readonly Dictionary<string, MutableMetric> _utmSources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, MutableMetric> _utmMediums = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Source, string Medium, string Campaign), MutableMetric> _campaigns = [];
@@ -1528,6 +1665,8 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
             GetOrCreate(_sources,
                 (source == "internal" ? "unknown" : source, medium == "internal" ? "unknown" : medium),
                 static () => new MutableMetric());
+        public MutableMetric GetReferrer(string host) =>
+            GetOrCreate(_referrers, host, static () => new MutableMetric());
         public MutableMetric GetUtmSource(string source) =>
             GetOrCreate(_utmSources, source, static () => new MutableMetric());
         public MutableMetric GetUtmMedium(string medium) =>
@@ -1566,6 +1705,10 @@ internal sealed class AnalyticsStore : IAnalyticsReportReader, IAnalyticsNotFoun
                         item.Key.Medium,
                         item.Value.Count,
                         item.Value.Visitors))
+                    .ToArray(),
+                _referrers.OrderByDescending(item => item.Value.Count).ThenBy(item => item.Key)
+                    .Take(30)
+                    .Select(item => new ReferrerAnalytics(item.Key, item.Value.Count, item.Value.Visitors))
                     .ToArray(),
                 _utmSources.OrderByDescending(item => item.Value.Count).ThenBy(item => item.Key)
                     .Take(30)

@@ -46,6 +46,14 @@ internal sealed class StoreFixture : IDisposable
     public static StoreFixture Create(DateTimeOffset? utcNow = null) =>
         new(utcNow ?? new DateTimeOffset(2026, 8, 20, 12, 0, 0, TimeSpan.Zero));
 
+    // A second store over the same files: schema upgrades only run once per store instance.
+    public AnalyticsStore NewStore() => new(
+        Paths,
+        DbContextFactory,
+        TimeProvider,
+        Microsoft.Extensions.Options.Options.Create(Options),
+        NullLogger<AnalyticsStore>.Instance);
+
     public Task RecordAsync(
         string visitorId,
         AnalyticsEventKind kind,
