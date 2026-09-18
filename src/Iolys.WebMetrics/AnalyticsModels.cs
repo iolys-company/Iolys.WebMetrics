@@ -6,6 +6,8 @@ public sealed record PageAnalytics(string Path, long Views, long Visitors);
 
 public sealed record SourceAnalytics(string Source, string Medium, long Views, long Visitors);
 
+public sealed record ReferrerAnalytics(string Host, long Views, long Visitors);
+
 public sealed record UtmSourceAnalytics(string Source, long Views, long Visitors);
 
 public sealed record UtmMediumAnalytics(string Medium, long Views, long Visitors);
@@ -45,6 +47,7 @@ public sealed record AnalyticsDashboard(
     IReadOnlyList<DailyAnalytics> Daily,
     IReadOnlyList<PageAnalytics> TopPages,
     IReadOnlyList<SourceAnalytics> Sources,
+    IReadOnlyList<ReferrerAnalytics> Referrers,
     IReadOnlyList<UtmSourceAnalytics> UtmSources,
     IReadOnlyList<UtmMediumAnalytics> UtmMediums,
     IReadOnlyList<CampaignAnalytics> Campaigns,

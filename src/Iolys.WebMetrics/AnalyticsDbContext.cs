@@ -11,6 +11,7 @@ internal sealed class AnalyticsDbContext(DbContextOptions<AnalyticsDbContext> op
     public DbSet<AnalyticsDailyRollupEntity> DailyRollups => Set<AnalyticsDailyRollupEntity>();
     public DbSet<AnalyticsPageRollupEntity> PageRollups => Set<AnalyticsPageRollupEntity>();
     public DbSet<AnalyticsSourceRollupEntity> SourceRollups => Set<AnalyticsSourceRollupEntity>();
+    public DbSet<AnalyticsReferrerRollupEntity> ReferrerRollups => Set<AnalyticsReferrerRollupEntity>();
     public DbSet<AnalyticsUtmSourceRollupEntity> UtmSourceRollups => Set<AnalyticsUtmSourceRollupEntity>();
     public DbSet<AnalyticsUtmMediumRollupEntity> UtmMediumRollups => Set<AnalyticsUtmMediumRollupEntity>();
     public DbSet<AnalyticsCampaignRollupEntity> CampaignRollups => Set<AnalyticsCampaignRollupEntity>();
@@ -25,7 +26,7 @@ internal sealed class AnalyticsDbContext(DbContextOptions<AnalyticsDbContext> op
             entity.Property(item => item.Key).HasColumnName("key");
             entity.Property(item => item.Value).HasColumnName("value");
             entity.HasData(
-                new AnalyticsMetadataEntity { Key = "schema_version", Value = "3" },
+                new AnalyticsMetadataEntity { Key = "schema_version", Value = "4" },
                 new AnalyticsMetadataEntity { Key = "compacted", Value = "0" });
         });
 
@@ -88,6 +89,16 @@ internal sealed class AnalyticsDbContext(DbContextOptions<AnalyticsDbContext> op
             entity.Property(item => item.Day).HasColumnName("day");
             entity.Property(item => item.Source).HasColumnName("source");
             entity.Property(item => item.Medium).HasColumnName("medium");
+            entity.Property(item => item.Views).HasColumnName("views");
+            entity.Property(item => item.Visitors).HasColumnName("visitors");
+        });
+
+        modelBuilder.Entity<AnalyticsReferrerRollupEntity>(entity =>
+        {
+            entity.ToTable("referrer_rollup");
+            entity.HasKey(item => new { item.Day, item.Host });
+            entity.Property(item => item.Day).HasColumnName("day");
+            entity.Property(item => item.Host).HasColumnName("host");
             entity.Property(item => item.Views).HasColumnName("views");
             entity.Property(item => item.Visitors).HasColumnName("visitors");
         });
@@ -207,6 +218,14 @@ internal sealed class AnalyticsSourceRollupEntity
     public required string Day { get; set; }
     public required string Source { get; set; }
     public required string Medium { get; set; }
+    public long Views { get; set; }
+    public long Visitors { get; set; }
+}
+
+internal sealed class AnalyticsReferrerRollupEntity
+{
+    public required string Day { get; set; }
+    public required string Host { get; set; }
     public long Views { get; set; }
     public long Visitors { get; set; }
 }
