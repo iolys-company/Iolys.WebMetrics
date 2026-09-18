@@ -4,7 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.2.0] - 2026-09-19
+
+### Added
+
+- Report referring sites as their own dashboard dimension through `AnalyticsDashboard.Referrers`, counted from each visit's entry referrer host and independent of UTM parameters.
+- Store referring hosts in a new `referrer_rollup` table so archived months keep the dimension; shards are upgraded to schema version 4 automatically, rebuilding history from the existing `referral` source rows.
+
+### Changed
+
+- **Breaking:** `AnalyticsDashboard` takes a `Referrers` list between `Sources` and `UtmSources`; code constructing the record positionally must be updated.
+
+## [0.1.2] - 2026-09-15
 
 ### Fixed
 

@@ -22,6 +22,7 @@ applications.
 - Server-side collection for successful HTML page views and 404 responses.
 - Monthly pseudonymous visitor identifiers derived with HMAC-SHA256.
 - UTM source, medium, and campaign reporting.
+- Referring-site reporting as its own dimension, independent of campaign parameters.
 - Referrer-host, page, visitor, and 404 summaries.
 - One local SQLite database per month.
 - Automatic compaction of expired monthly databases into aggregate counters.
@@ -140,6 +141,16 @@ unchanged. Compaction applies the same attribution before removing expired event
 An internal entry with no recent landing event is reported as `unknown`, including
 at the monthly visitor identifier boundary. Previously compacted `internal`
 counts are also reported as `unknown`: their original source cannot be recovered.
+
+Referring sites are reported separately from sources, in
+`AnalyticsDashboard.Referrers`. A row is the entry referrer host of a visit, so
+every page of that visit counts for the site that sent it, and an inbound link
+that also carries UTM parameters appears in both the campaign and the referrer
+reports. Direct entries and entries whose referrer could not be recovered are
+absent instead of being grouped under a fake host. For months compacted by an
+earlier version, referrer counts are rebuilt from the archived `referral`
+source rows, so a historical inbound link that carried its own UTM medium can be
+missing.
 
 Visitor counts are distinct within each reported source/medium or campaign group
 while raw events are available. The same visitor can appear in several groups;
