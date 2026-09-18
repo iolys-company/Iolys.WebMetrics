@@ -91,7 +91,7 @@ Inject `IAnalyticsReportReader` into a Razor Page, controller, or endpoint:
 ```csharp
 public sealed class StatsModel(IAnalyticsReportReader metrics) : PageModel
 {
-    public AnalyticsDashboard Dashboard { get; private set; } = default!;
+    public AnalyticsDashboard Dashboard { get; private set; } = AnalyticsDashboard.Empty;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -99,6 +99,8 @@ public sealed class StatsModel(IAnalyticsReportReader metrics) : PageModel
     }
 }
 ```
+
+`AnalyticsDashboard.Empty` is a shared instance with zeroed totals and empty dimension lists. Use it as an initial value instead of constructing the record positionally, so that added dimensions cannot silently change the meaning of existing call sites.
 
 Use `IAnalyticsNotFoundManager` to remove a resolved 404 from current events and compacted rollups:
 

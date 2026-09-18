@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- `AnalyticsDashboard.Empty`, a cached dashboard with zeroed totals and empty dimension lists, so applications can initialize a dashboard property without constructing the record positionally.
+
 ## [0.2.0] - 2026-09-19
 
 ### Added

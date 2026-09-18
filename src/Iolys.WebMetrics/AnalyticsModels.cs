@@ -52,7 +52,29 @@ public sealed record AnalyticsDashboard(
     IReadOnlyList<UtmMediumAnalytics> UtmMediums,
     IReadOnlyList<CampaignAnalytics> Campaigns,
     IReadOnlyList<NotFoundAnalytics> NotFound,
-    IReadOnlyList<AnalyticsMonth> Months);
+    IReadOnlyList<AnalyticsMonth> Months)
+{
+    /// <summary>
+    /// Gets a dashboard without any recorded activity, suitable as an initial value before the first report is read.
+    /// </summary>
+    public static AnalyticsDashboard Empty { get; } = new(
+        TodayViews: 0,
+        TodayVisitors: 0,
+        PeriodViews: 0,
+        PeriodVisitors: 0,
+        TotalViews: 0,
+        TotalVisitors: 0,
+        PeriodNotFound: 0,
+        Daily: [],
+        TopPages: [],
+        Sources: [],
+        Referrers: [],
+        UtmSources: [],
+        UtmMediums: [],
+        Campaigns: [],
+        NotFound: [],
+        Months: []);
+}
 
 public interface IAnalyticsReportReader
 {
